@@ -38,35 +38,34 @@ wlp7s0	00000000	0100A8C0	0003	0	0	600	00000000	0	0	0
 wlp7s0	0000A8C0	00000000	0001	0	0	600	00FFFFFF	0	0	0                                                                           
 */
     std::ifstream file("/proc/net/route");
-    if(!file)
-    {
+    if(!file) {
         error = std::make_error_code(std::errc::bad_file_descriptor);
         return asio::ip::address_v4(0);
     }
+
     std::string line;
     // Ignore first line. TODO optimize
     std::getline(file, line);
-    while(std::getline(file, line))
-    {
+    while(std::getline(file, line)) {
         std::stringstream ss;
         uint32_t dest;
         uint32_t gateway;
         // Ignore the interface identifier by trimming up to the first whitespace char.
         line.erase(line.cbegin(), std::find_if(line.cbegin(), line.cend(),
-            [](const char c) { return std::isspace(c); }));
+                        [](const auto c) { return std::isspace(c); }));
         ss << std::hex;
         ss << line;
         ss >> dest;
         ss >> gateway;
-        if((dest == 0) && (gateway != 0))
-        {
+        if(dest == 0 && gateway != 0) {
             // /proc/net/route stores numbers in the architecture's byte order,
             // but since stringstream assumes big endian order, we have to
             // manually convert it if the system is not big endian.
-            if(endian::order::host == endian::order::little)
+            if(endian::order::host == endian::order::little) {
                 return asio::ip::address_v4(endian::reverse(gateway));
-            else
+            } else {
                 return asio::ip::address_v4(gateway);
+            }
         }
     }
     return asio::ip::address_v4(0);

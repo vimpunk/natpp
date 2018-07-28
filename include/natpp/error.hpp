@@ -2,8 +2,7 @@
 #define NATPP_NATPMP_ERROR_HEADER
 
 #include <type_traits>
-// TODO generalize
-#include <system_error>
+#include <string>
 
 #include <asio/error.hpp>
 
@@ -17,32 +16,37 @@ namespace error {
 enum class natpmp
 {
     unsupported_version = 1,
-    unauthorized,
-    network_failure,
-    out_of_resources,
-    unsupported_opcode,
-    invalid_opcode,
+    // E.g. box supports mapping but user has turned feature off.
+    unauthorized = 2,
+    // E.g. box hasn't obtained a DHCP lease.
+    network_failure = 3,
+    // Box cannot create any more mappings at this time.
+    out_of_resources = 4,
+    invalid_opcode = 5,
+    unknown_error
 };
 
-struct natpmp_error_category : public error_category
+struct natpmp_error_category : public nat::error_category
 {
     const char* name() const noexcept override { return "natpmp"; }
     std::string message(int ev) const override
     {
-        switch(static_cast<natpmp>(ev))
-        {
+        // FIXME this method invocation segfaults o.O
+        if(ev > static_cast<std::underlying_type<natpmp>::type>(natpmp::invalid_opcode))
+            return {};
+        switch(static_cast<natpmp>(ev)) {
         case natpmp::unsupported_version: return "Unsupported version";
         case natpmp::unauthorized: return "Unauthorized";
         case natpmp::network_failure: return "Network_failure";
         case natpmp::out_of_resources: return "Out of resources";
-        case natpmp::unsupported_opcode: return "Unsupported version";
         case natpmp::invalid_opcode: return "Invalid opcode";
         default: return "Unknown";
         }
+        return {};
     }
 };
 
-inline const natpmp_error_category& natpmp_category()
+inline const natpmp_error_category& get_natpmp_error_category()
 {
     static natpmp_error_category instance;
     return instance;
@@ -52,7 +56,7 @@ inline const natpmp_error_category& natpmp_category()
 
 inline error_code make_error_code(error::natpmp ec)
 {
-    return error_code(static_cast<int>(ec), error::natpmp_error_category());
+    return error_code(static_cast<int>(ec), error::get_natpmp_error_category());
 }
 
 } // nat

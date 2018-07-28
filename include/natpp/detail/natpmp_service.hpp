@@ -98,6 +98,11 @@ public:
 
     void shutdown();
 
+    asio::ip::address gateway_address(implementation_type& impl)
+    {
+        return gateway_endpoint_.address();
+    }
+
     asio::ip::address public_address(implementation_type& impl, error_code& error);
 
     template<typename Handler>

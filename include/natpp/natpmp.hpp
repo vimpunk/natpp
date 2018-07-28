@@ -6,7 +6,6 @@
 #include "detail/natpmp_service.hpp"
 
 #include <asio/async_result.hpp>
-//#include <asio/detail/bind_handler.hpp>
 
 namespace asio { class io_context; }
 
@@ -17,6 +16,11 @@ struct natpmp : public asio::basic_io_object<detail::natpmp_service>
     explicit natpmp(asio::io_context& ios)
         : asio::basic_io_object<detail::natpmp_service>(ios)
     {}
+
+    asio::ip::address gateway_address(error_code& error)
+    {
+        return this->get_service().gateway_address(this->get_implementation()/*, error*/);
+    }
 
     asio::ip::address public_address(error_code& error)
     {
