@@ -20,14 +20,21 @@ namespace nat {
  */
 struct natpmp : public asio::basic_io_object<detail::natpmp_service>
 {
-    explicit natpmp(asio::io_context& ios)
-        : asio::basic_io_object<detail::natpmp_service>(ios)
+    /**
+     * Constructs a natpmp object.
+     *
+     * @param io_context The io_context object that the datagram socket will use
+     * to dispatch handlers for any asynchronous operations performed on the
+     * socket.
+     */
+    explicit natpmp(asio::io_context& io_context)
+        : asio::basic_io_object<detail::natpmp_service>(io_context)
     {}
 
-    /** Requests the default gateway address of this host. */
-    asio::ip::address gateway_address(error_code& error)
+    /** Returns the default gateway address of this host. */
+    asio::ip::address gateway_address()
     {
-        return this->get_service().gateway_address(this->get_implementation()/*, error*/);
+        return this->get_service().gateway_address(this->get_implementation());
     }
 
     /**
