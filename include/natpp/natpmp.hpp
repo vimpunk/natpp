@@ -24,8 +24,8 @@ struct natpmp : public asio::basic_io_object<detail::natpmp_service>
      * Constructs a natpmp object.
      *
      * @param io_context The io_context object that the datagram socket will use
-     * to dispatch handlers for any asynchronous operations performed on the
-     * socket.
+     * to dispatch handlers for any asynchronous operations performed on this
+     * object.
      */
     explicit natpmp(asio::io_context& io_context)
         : asio::basic_io_object<detail::natpmp_service>(io_context)
