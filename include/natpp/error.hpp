@@ -37,7 +37,7 @@ struct natpmp_error_category : public nat::error_category
         switch(static_cast<natpmp>(ev)) {
         case natpmp::unsupported_version: return "Unsupported version";
         case natpmp::unauthorized: return "Unauthorized";
-        case natpmp::network_failure: return "Network_failure";
+        case natpmp::network_failure: return "Network failure";
         case natpmp::out_of_resources: return "Out of resources";
         case natpmp::invalid_opcode: return "Invalid opcode";
         default: return "Unknown";

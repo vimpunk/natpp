@@ -10,10 +10,15 @@
 #include <asio/socket_base.hpp>
 #include <asio/buffer.hpp>
 
-#include <iostream>
-
 namespace nat {
 namespace detail {
+
+enum opcode
+{
+    public_address = 0,
+    udp_mapping = 1,
+    tcp_mapping = 2,
+};
 
 natpmp_service::natpmp_service(asio::io_context& ios)
     : asio::io_context::service(ios)
@@ -51,7 +56,7 @@ inline asio::const_buffer prep_public_address_request_message(char* buffer)
     return asio::buffer(buffer, 2);
 }
 
-inline void verify_response_header(const char* buffer, error_code& error)
+inline void verify_response_header(const char* buffer, int opcode, error_code& error)
 {
     const auto errc = endian::read<endian::order::network, uint16_t>(&buffer[2]);
     if(errc > 5) {
@@ -59,16 +64,18 @@ inline void verify_response_header(const char* buffer, error_code& error)
     } else {
         error = make_error_code(static_cast<error::natpmp>(errc));
     }
-
     if(error) {
         return;
     }
 
+    // Version code must be zero.
     if(buffer[0] != 0) {
         error = make_error_code(error::natpmp::unsupported_version);
         return;
     }
-    if(buffer[1] != 128) {
+    // The protocol number must be 128 + opcode.
+    // NOTE: need to cast to unsigned since char can has a max value of 127.
+    if(static_cast<uint8_t>(buffer[1]) != 128 + opcode) {
         error = make_error_code(error::natpmp::invalid_opcode);
         return;
     }
@@ -77,7 +84,7 @@ inline void verify_response_header(const char* buffer, error_code& error)
 inline asio::ip::address parse_public_address_response(
         const char* buffer, error_code& error)
 {
-    verify_response_header(buffer, error);
+    verify_response_header(buffer, opcode::public_address, error);
     if(error) {
         return {};
     }
@@ -88,9 +95,13 @@ inline asio::ip::address parse_public_address_response(
 asio::ip::address natpmp_service::public_address(
         implementation_type& impl, error_code& error)
 {
+    error = error_code();
     if(public_address_ != asio::ip::address()) {
+        // We've already requested this once, and since it's not expected to
+        // change, return a cached value.
         return public_address_;
     }
+
     if(pending_requests_.empty()) {
         // No pending requests, we're free to request away.
         const auto num_sent = socket_.send(
@@ -185,7 +196,11 @@ inline asio::const_buffer prep_mapping_request_message(
         char* buffer, const port_mapping& mapping)
 {
     buffer[0] = 0;
-    buffer[1] = mapping.type == port_mapping::udp ? 1 : 2;
+    if(mapping.type == port_mapping::udp) {
+        buffer[1] = opcode::udp_mapping;
+    } else {
+        buffer[1] = opcode::tcp_mapping;
+    }
     buffer[2] = 0;
     buffer[3] = 0;
     endian::write<endian::order::network, uint16_t>(mapping.private_port, &buffer[4]);
@@ -195,10 +210,14 @@ inline asio::const_buffer prep_mapping_request_message(
 }
 
 
-inline port_mapping parse_mapping_response(const char* buffer, error_code& error)
+inline port_mapping parse_mapping_response(const char* buffer, int opcode,
+        error_code& error)
 {
-    verify_response_header(buffer, error);
-    if(error) { {}; }
+    verify_response_header(buffer, opcode, error);
+    if(error) {
+        return {};
+    }
+
     port_mapping mapping;
     mapping.private_port = endian::read<endian::order::network, uint16_t>(&buffer[8]);
     mapping.public_port = endian::read<endian::order::network, uint16_t>(&buffer[10]);
@@ -208,13 +227,13 @@ inline port_mapping parse_mapping_response(const char* buffer, error_code& error
 }
 
 port_mapping natpmp_service::request_mapping(implementation_type& impl,
-        const port_mapping& mapping, error_code& error)
+        const port_mapping& request, error_code& error)
 {
     if(pending_requests_.empty()) {
         error = error_code();
         // No pending requests, we're free to request away.
         const auto num_sent = socket_.send(prep_mapping_request_message(
-                        send_buffer_.data(), mapping),
+                        send_buffer_.data(), request),
                 0, error);
         if(error) {
             return {};
@@ -234,7 +253,10 @@ port_mapping natpmp_service::request_mapping(implementation_type& impl,
             return {};
         }
 
-        auto mapping = parse_mapping_response(receive_buffer_.data(), error);
+        auto mapping = parse_mapping_response(receive_buffer_.data(),
+                request.type == port_mapping::udp
+                    ? opcode::udp_mapping : opcode::tcp_mapping,
+                error);
         if(!error) {
             impl.mappings.push_back(mapping);
         }
@@ -284,7 +306,10 @@ void natpmp_service::async_request_mapping_impl()
                     return;
                 }
 
-                auto mapping = parse_mapping_response(receive_buffer_.data(), error);
+                auto mapping = parse_mapping_response(receive_buffer_.data(),
+                        request.mapping.type == port_mapping::udp
+                            ? opcode::udp_mapping : opcode::tcp_mapping,
+                        error);
                 if(!error) {
                     impl.mappings.push_back(mapping);
                 }
@@ -319,14 +344,20 @@ void natpmp_service::async_remove_mapping_impl()
 void natpmp_service::remove_mapping(implementation_type& impl,
         const port_mapping& mapping, error_code& error)
 {
-    request_mapping(impl, mapping, error);
+    auto request = mapping;
+    request.duration = std::chrono::seconds(0);
+    request.public_port = 0;
+    request_mapping(impl, request, error);
 }
 
 template<typename Handler>
 void natpmp_service::async_remove_mapping(implementation_type& impl,
         const port_mapping& mapping, Handler handler)
 {
-    async_request_mapping(impl, mapping, std::move(handler));
+    auto request = mapping;
+    request.duration = std::chrono::seconds(0);
+    request.public_port = 0;
+    async_request_mapping(impl, request, std::move(handler));
 }
 
 void natpmp_service::execute_request()

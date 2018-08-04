@@ -20,8 +20,22 @@ namespace asio { class io_context; } // asio
 namespace nat {
 namespace detail {
 
+/**
+ * @brief A service that implements the NAT-PMP communication protocol for all
+ * @ref nat::natpmp objects.
+ *
+ * Since there is only a single default gateway for a host it makes sense to
+ * only have one actual entity communicating with it, regardless of how many
+ * times it is used in an application. Thus, @ref nat::natpmp instances act as
+ * a frontend for this service backend.
+ */
 struct natpmp_service : public asio::io_context::service
 {
+    /**
+     * @brief Data for each @ref nat::natpmp instance.
+     *
+     * Holds all currently active mappings of the client.
+     */
     struct natpmp_client
     {
         std::vector<port_mapping> mappings;
@@ -110,7 +124,9 @@ public:
 
     const std::vector<port_mapping>&
     port_mappings(const implementation_type& impl) const noexcept
-    { return impl.mappings; }
+    {
+        return impl.mappings;
+    }
 
     port_mapping request_mapping(implementation_type& impl,
             const port_mapping& mapping, error_code& error);
@@ -137,7 +153,7 @@ private:
     Request pop_current_request();
 };
 
-asio::execution_context::id natpmp_service::id;
+inline asio::execution_context::id natpmp_service::id;
 
 } // detail
 } // nat
