@@ -6,7 +6,7 @@ the well established Asio C++ networking library.
 ## Asio
 
 This library integrates deeply with the Asio framework by providing an IO service backend and corresponding IO
-object classes for each protocol type.
+object classes for each protocol type. Currently it only works with the standalone version of Asio, but support for independent Asio sources (i.e. standalone or Boost) is in the plans.
 
 ## Work-in-progress note
 
